@@ -14,7 +14,6 @@
 
 import os
 import re
-import glob
 import platform
 import json
 import sys
@@ -36,12 +35,11 @@ def print_header():
     print("\t##   SBOM Extract                ##")
     print("\t##   Author: " + settings["author"] + "\t ##")
     print("\t##   Version: v" + settings["version"] + "\t\t ##")
-    print("\t###################################")
+    print("\t###################################\n")
 
 def print_usage():
     print_header()
-    print("")
-    print("\nUsage:\n")
+    print("Usage:\n")
     print(sys.argv[0] + " <target repository> <export file> [parameters]\n")
     print("Parameters:")
     print("\t-h or --help\tdisplays help")
