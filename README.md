@@ -14,20 +14,20 @@ Params:
 -a or --append        Appends to file
 
 Example:          
-
+```
 python3 .\sbom.py project-repo export.txt -v -f                           
-
+```
 Then appending other project to the same export file
-
+```
 python3 .\sbom.py another-project export.txt -v -f -a 
-
+```
 # Current features
 Reads package.json and deps.edn files recursively from a directory
 
 Supports both, windows and linux-based environments
 
 Example export.txt:
-
+```
 Software Bill of Materials (SBOM)
 18/03/2021 14:53:46
 
@@ -39,10 +39,10 @@ Dependencies:\
 date-fns: ^2.12.0\
 dayjs: ^1.9.6\
 sanitize-filename: ^1.6.3\
-uuid: ^8.3.1\
+uuid: ^8.3.1
 
 Development dependencies:\
-jest: ^26.6.0\
+jest: ^26.6.0
 
 #################
 
@@ -68,8 +68,9 @@ com.fasterxml.jackson.datatype/jackson-datatype-joda: mvn/version 2.10.0\
 lambdaisland/kaocha: mvn/version 1.0-612\
 lambdaisland/kaocha-cljs: mvn/version 0.0-71\
 lambdaisland/kaocha-cloverage: mvn/version 1.0-45\
-ch.qos.logback/logback-classic: mvn/version 1.3.0-alpha5\
+ch.qos.logback/logback-classic: mvn/version 1.3.0-alpha5
 
 Development dependencies:
 
 #################
+```
