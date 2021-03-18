@@ -1,5 +1,6 @@
-# Author: Juho Lappalainen ( juho9179@gmail.com )
-# Version: 0.1
+# Author: Juho Lappalainen
+author = "Juho9179@gmail.com"
+version = "0.1"
 # Recursively extracts dependencies and version numbers from a repository manifest files, such as package.json
 # Exports found dependencies in a readable format
 #
@@ -7,6 +8,7 @@
 # python3 sbom.py <target repository> <export name> params
 # Params:
 # -f or --force         forces overwriting of export file
+# -v or --verbose       verbose output
 
 import os
 import glob
@@ -15,6 +17,11 @@ import json
 import sys
 from datetime import datetime
 
+def verbose_print(string):
+    global settings
+    if (not settings["quiet"]):
+        print(string)
+
 def print_usage():
     print("## SBOM ##")
     print("Usage:")
@@ -22,21 +29,25 @@ def print_usage():
     print("Parameters:")
     print("-f or --force\tforces overwrite of export file (default: appends)")
 
-
-# Check OS
 def get_delimeter():
+    # Check OS, set delimiter
     if (platform.system() == "Windows"):
         return "\\"
     else:
         return "/"
 
-
 def process_package_json(filepath):
-# Processes package.json in given filepath
+    # Processes package.json in given filepath
     f = open(filepath)
     data = json.load(f)
 
-    name = data["name"]
+    # get name, if no name, use file path
+    name = ""
+    try:
+        name = data["name"]
+    except KeyError:
+        name = filepath
+
     devdeps = []
     deps = []
     try:
@@ -46,7 +57,7 @@ def process_package_json(filepath):
             dep["version"] = data["devDependencies"][i]
             devdeps.append(dep)
     except KeyError:
-        print("No dev dependencies for " + name)
+        verbose_print("[-] No development dependencies for " + name)
 
 
     try:
@@ -56,7 +67,7 @@ def process_package_json(filepath):
             dep["version"] = data["dependencies"][i]
             deps.append(dep)
     except KeyError:
-        print("No dependencies for " + name)
+        verbose_print("[-] No dependencies for " + name)
 
     f.close()
     
@@ -68,6 +79,52 @@ def process_package_json(filepath):
     exported["dependencies"]["dependencies"] = deps
     return exported
 
+def process_deps_edn(filepath):
+    # Processes deps.edn file and returns object
+    # TODO: Implement
+    verbose_print("[-] deps.edn processing not implemented")
+
+    # Processes package.json in given filepath
+    #f = open(filepath)
+    #data = json.load(f)
+
+    ## get name, if no name, use file path
+    #name = ""
+    #try:
+    #    name = data["name"]
+    #except KeyError:
+    #    name = filepath
+
+    #devdeps = []
+    #deps = []
+    #try:
+    #    for i in data["devDependencies"]:
+    #        dep = {}
+    #        dep["name"] = i
+    #        dep["version"] = data["devDependencies"][i]
+    #        devdeps.append(dep)
+    #except KeyError:
+    #    verbose_print("[-] No development dependencies for " + name)
+
+
+    #try:
+    #    for i in data["dependencies"]:
+    #        dep = {}
+    #        dep["name"] = i
+    #        dep["version"] = data["dependencies"][i]
+    #        deps.append(dep)
+    #except KeyError:
+    #    verbose_print("[-] No dependencies for " + name)
+
+    #f.close()
+    
+    # create object to be returned
+    exported = {}
+    exported["name"] = name
+    exported["dependencies"] = {}
+    exported["dependencies"]["development_dependencies"] = devdeps
+    exported["dependencies"]["dependencies"] = deps
+    return exported
 
 def process_manifest(filepath):
     # Determines manifest type and processes accordingly
@@ -90,22 +147,22 @@ def process_manifest(filepath):
     #                    } 
     #    }
 
-    # if manifest is package.json
+    # check type and process accordingly
+    verbose_print("[+] Processing manifest: " + filepath)
     if (filepath.split(get_delimeter())[-1] == "package.json"):
-       return(process_package_json(filepath))
-
-    # elif... is not package json
-
+        return(process_package_json(filepath))
+    elif (filepath.split(get_delimeter())[-1] == "deps.edn"):
+        return(process_deps_edn(filepath))
 
 def find_manifests(targetrepo):
     # Find all manifest files
     # Currently supports:
     # package.json
-    manifests_types = ["package.json"]
+    manifests_types = ["package.json", "deps.edn"]
     manifest_files = []
     
     delimeter = get_delimeter()
-
+    verbose_print("[+] Finding manifest files ...")
     for (dir, _, files) in os.walk(targetrepo):
         for f in files:
             path = os.path.join(dir, f)
@@ -113,18 +170,8 @@ def find_manifests(targetrepo):
 
                 if (path.split(delimeter)[-1] in manifests_types):
                     manifest_files.append(path)
-
+    verbose_print("[+] Found " + str(len(manifest_files)) + " manifest files")
     return manifest_files
-
-# function to process clojure deps file
-# returns object
-# 	{ 
-#		package_name: nimi,
-#		deps: {
-#			devDependencies: [ { nimi: nimi, versio: versio }... ]
-#			dependencies: [ { nimi: nimi, versio: versio }... ]	
-#		      }
-#	}
 
 def append_component(component, targetfile):
     # Reads component object and appends its' contents to targetfile in a readable format
@@ -148,15 +195,16 @@ def append_component(component, targetfile):
     f.write("\n")
     f.write("#################")
     f.write("\n\n")
-    
+
     f.close()
 
 def overwrite_check(targetfile):
     # Shows overwrite warning if force parameter is not used.
     global settings
+    verbose_print("[+] Checking overwrite settings ...")
     if (settings["force"] == False):
         if (os.path.isfile(targetfile)):
-            print("WARNING: Export file '" + settings["export"] + "' already exists, overwrite? Y / N")
+            print("[i] WARNING: Export file '" + settings["export"] + "' already exists, overwrite? Y / N")
             overwrite = input("Overwrite: ")
             if (overwrite == "y" or overwrite == "Y"):
                 return True
@@ -168,9 +216,10 @@ def overwrite_check(targetfile):
 def clean_target(targetfile):
     # Checks whether to overwrite or append the export file
     # Initializes the file with header / title, creates the file if it does not exist
-    
+    verbose_print("[+] Initializing clean-up routine")
     if (overwrite_check(targetfile)):
         # Overwrite
+        verbose_print("[+] Overwriting file " + targetfile)
         f = open(targetfile, "w+")
         now = datetime.now()
         f.write("Software Bill of Materials (SBOM)\n")
@@ -181,6 +230,7 @@ def clean_target(targetfile):
     else:
         # Append
         f = open(targetfile, "a+")
+        verbose_print("[+] Appending to file " + targetfile)
         now = datetime.now()
         f.write("Software Bill of Materials (SBOM)\n")
         dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
@@ -188,16 +238,19 @@ def clean_target(targetfile):
         f.write("#################\n\n")
         f.close()
 
-
 def init_settings():
     # Initialize global settings
     # Check for missing arguments
+    global version
+    global author
     if (len(sys.argv) < 3):
         print_usage()
         exit()
 
     # Initialize settings
     settings = {}
+    settings["version"] = version
+    settings["author"] = author
     settings["target"] = sys.argv[1]
     settings["export"] = sys.argv[2]
     if (("-f" in sys.argv) or ("--force" in sys.argv)):
@@ -205,13 +258,25 @@ def init_settings():
     else:
         settings["force"] = False
 
+    if (("-v" in sys.argv) or ("--verbose" in sys.argv)):
+        settings["quiet"] = False
+    else:
+        settings["quiet"] = True
     return settings
 
 # main function
 def main():
     global settings
-
     settings = init_settings()
+    verbose_print("###################################")
+    verbose_print("##   SBOM Extract                ##")
+    verbose_print("##   Author: " + settings["author"] + "\t ##")
+    verbose_print("##   Version: v" + settings["version"] + "\t\t ##")
+    verbose_print("###################################")
+    verbose_print("[i] Target repository: " + settings["target"])
+    verbose_print("[i] Export file: " + settings["export"])
+    verbose_print("[i] Force: " + str(settings["force"]))
+    verbose_print("[i] Verbose: " + str(not settings["quiet"]))
     
     clean_target(settings["export"])
 
@@ -221,6 +286,8 @@ def main():
 
     for i in components:
         append_component(i, settings["export"])
+
+    verbose_print("[+] SBOM Extracted to: " + settings["export"])
 
 if __name__ == "__main__":
     main()
