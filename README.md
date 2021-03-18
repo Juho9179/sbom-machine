@@ -5,14 +5,16 @@ Reads recursively manifest files in a repository, exports dependencies and depen
 https://en.wikipedia.org/wiki/Software_bill_of_materials
 
 # Usage
+```
 python3 sbom.py <target repository> <export name> params
-
-Params:
+```
+Params:\
+```
 -h or --help          displays help
 -f or --force         forces overwriting of export file
 -v or --verbose       verbose output
 -a or --append        Appends to file
-
+```
 Example:          
 ```
 python3 .\sbom.py project-repo export.txt -v -f                           
