@@ -1,5 +1,5 @@
 # repository directory for testing purposes
 /testrepo
-
+/clojutest
 # txt files, for example, exports
 *.txt
