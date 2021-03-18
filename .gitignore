@@ -1,0 +1,5 @@
+# repository directory for testing purposes
+/testrepo
+
+# txt files, for example, exports
+*.txt
