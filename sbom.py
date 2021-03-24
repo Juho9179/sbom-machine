@@ -10,6 +10,8 @@
 # -h or --help          displays help
 # -f or --force         forces overwriting of export file
 # -v or --verbose       verbose output
+# -iY or --include-yarn includes processing yarn.lock files
+# -oY or --only-yarn    processes only yarn.lock files
 # -a or --append        Appends to file
 
 import os
@@ -21,7 +23,7 @@ from datetime import datetime
 
 settings = {}
 settings["author"] = "Juho9179@gmail.com"
-settings["version"] = "0.1"
+settings["version"] = "0.2"
 
 def verbose_print(string):
     global settings
@@ -40,12 +42,14 @@ def print_header():
 def print_usage():
     print_header()
     print("Usage:\n")
-    print(sys.argv[0] + " <target repository> <export file> [parameters]\n")
+    print(sys.argv[0] + " <target repository/directory> <export file> [parameters]\n")
     print("Parameters:")
-    print("\t-h or --help\tdisplays help")
-    print("\t-f or --force\tforces overwrite of export file - doesn't ask for input if export file exists")
-    print("\t-a or --append\tappends output to export file, instead of overwriting it.")
-    print("\t-v or --verbose\tverbose output\n")
+    print("\t-h or --help\t\tdisplays help")
+    print("\t-f or --force\t\tforces overwrite of export file - doesn't ask for input if export file exists")
+    print("\t-a or --append\t\tappends output to export file, instead of overwriting it.")
+    print("\t-iY or --include-yarn\tincludes processing dependencies in yarn.lock file")
+    print("\t-yO or --yarn-only\tprocesses only yarn.lock files")
+    print("\t-v or --verbose\t\tverbose output\n")
     print("Example:\n")
     print("\t" + sys.argv[0] + " project-repo export.txt -v -f\n")
     print("Then appending other project to the same export file\n")
@@ -143,7 +147,6 @@ def parse_edn_first_dep(dep):
         dep["version"] = rest[1][2:] + " " + rest[2]
     return dep
 
-
 def parse_edn_dep(dep):
     # parse edn dep, return object { name: name, version: version }
     entry = dep.split(" ")
@@ -160,6 +163,21 @@ def parse_edn_dep(dep):
         dep["version"] = entry_source + " " + entry_version[1]
 
     return dep
+
+def process_yarn_lock(filepath):    
+    f = open(filepath)
+
+    contents = f.read()
+    deps = contents.split("\n\n")
+
+    retn = {}
+    retn["name"] = filepath.split(get_delimeter())[-2]
+    retn["yarn_lock"] = []
+
+    for i in deps[1:]:
+        retn["yarn_lock"].append(i)
+
+    return retn
 
 def process_manifest(filepath):
     # Determines manifest type and processes accordingly
@@ -188,12 +206,24 @@ def process_manifest(filepath):
         return(process_package_json(filepath))
     elif (filepath.split(get_delimeter())[-1] == "deps.edn"):
         return(process_deps_edn(filepath))
+    elif  (filepath.split(get_delimeter())[-1] == "yarn.lock"):
+        return(process_yarn_lock(filepath))
 
 def find_manifests(targetrepo):
     # Find all manifest files
     # Currently supports:
-    # package.json, deps.edn
-    manifests_types = ["package.json", "deps.edn"]
+    # package.json, deps.edn, yarn.lock
+    manifest_types = []
+
+    if (settings["yarn_only"]):
+        manifest_types.append("yarn.lock")
+    else:
+        manifest_types_defaults = ["package.json", "deps.edn"]
+        for i in manifest_types_defaults:
+            manifest_types.append(i)
+        if (settings["include_yarn_lock"]):
+            manifest_types.append("yarn.lock")
+
     manifest_files = []
     
     delimeter = get_delimeter()
@@ -203,7 +233,7 @@ def find_manifests(targetrepo):
             path = os.path.join(dir, f)
             if os.path.exists(path):
 
-                if (path.split(delimeter)[-1] in manifests_types):
+                if (path.split(delimeter)[-1] in manifest_types):
                     manifest_files.append(path)
     verbose_print("[+] Found " + str(len(manifest_files)) + " manifest files")
     return manifest_files
@@ -212,22 +242,33 @@ def append_component(component, targetfile):
     # Reads component object and appends its' contents to targetfile in a readable format
     f = open(targetfile, "a")
     f.write("Component name: " + component["name"] + "\n\n")
-    
-    # process dependencies
-    f.write("Dependencies:\n")
-    if (len(component["dependencies"]["dependencies"]) > 0):
-        for i in component["dependencies"]["dependencies"]:
-            f.write(i["name"] + ": " + i["version"] + "\n")
+    # process yarn.lock if any
+    try:
+        if (len(component["yarn_lock"]) > 0):
+            verbose_print("[+] Processing yarn.lock for component " + component["name"])
+            f.write("yarn.lock:\n")
+            for i in component["yarn_lock"]:
+                f.write(i + "\n\n")
+            f.write("\n")
+    except KeyError:
+        # verbose_print("[-] No yarn.lock for component " + component["name"])
+        
+        # process dependencies
+        if (len(component["dependencies"]["dependencies"]) > 0):
+            f.write("Dependencies:\n")
+            for i in component["dependencies"]["dependencies"]:
+                f.write(i["name"] + ": " + i["version"] + "\n")
+            f.write("\n")
 
-    f.write("\n")
 
-    # process development dependencies
-    f.write("Development dependencies:\n")
-    if (len(component["dependencies"]["development_dependencies"]) > 0):
-        for i in component["dependencies"]["development_dependencies"]:
-            f.write(i["name"] + ": " + i["version"] + "\n")
-            
-    f.write("\n")
+        # process development dependencies
+        if (len(component["dependencies"]["development_dependencies"]) > 0):
+            f.write("Development dependencies:\n")
+            for i in component["dependencies"]["development_dependencies"]:
+                f.write(i["name"] + ": " + i["version"] + "\n")    
+            f.write("\n")
+
+
     f.write("#################")
     f.write("\n\n")
 
@@ -249,7 +290,7 @@ def overwrite_check(targetfile):
         return False
     else:
         return True
-    
+
 def clean_target(targetfile):
     # Checks whether to overwrite or append the export file
     # Initializes the file with header / title, creates the file if it does not exist
@@ -286,6 +327,7 @@ def init_settings():
     # Initialize settings
     settings["target"] = sys.argv[1]
     settings["export"] = sys.argv[2]
+
     if (("-f" in sys.argv) or ("--force" in sys.argv)):
         settings["force"] = True
     else:
@@ -300,6 +342,17 @@ def init_settings():
         settings["quiet"] = False
     else:
         settings["quiet"] = True
+
+    if (("-iY" in sys.argv) or ("--include-yarn" in sys.argv)):
+        settings["include_yarn_lock"] = True
+    else:
+        settings["include_yarn_lock"] = False
+    
+    if (("-oY" in sys.argv) or ("--only-yarn" in sys.argv)):
+        settings["yarn_only"] = True
+    else:
+        settings["yarn_only"] = False
+
     return settings
 
 # main function
@@ -310,6 +363,8 @@ def main():
     verbose_print("[i] Target repository: " + settings["target"])
     verbose_print("[i] Export file: " + settings["export"])
     verbose_print("[i] Force: " + str(settings["force"]))
+    verbose_print("[i] Yarn only: " + str(settings["yarn_only"]))
+    verbose_print("[i] Include yarn.lock: " + str(settings["include_yarn_lock"]))
     verbose_print("[i] Verbose: " + str(not settings["quiet"]))
     
     clean_target(settings["export"])

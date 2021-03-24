@@ -10,10 +10,12 @@ python3 sbom.py <target repository> <export name> params
 ```
 Params:
 ```
--h or --help          displays help
--f or --force         forces overwriting of export file
--v or --verbose       verbose output
--a or --append        Appends to file
+-h or --help                    displays help
+-f or --force                   forces overwriting of export file
+-v or --verbose                 verbose output
+-iY or --include-yarn           includes yarn.lock files in export
+-oY or --only-yarn              processes only yarn.lock files
+-a or --append                  Appends to file
 ```
 Example:          
 ```
@@ -24,7 +26,7 @@ Then appending other project to the same export file
 python3 .\sbom.py another-project export.txt -v -f -a 
 ```
 # Current features
-Reads package.json and deps.edn files recursively from a directory
+Reads package.json, deps.edn and yarn.lock files recursively from a directory
 
 Supports both, windows and linux-based environments
 
