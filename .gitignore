@@ -3,3 +3,4 @@
 /clojutest
 # txt files, for example, exports
 *.txt
+*.json

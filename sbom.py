@@ -7,12 +7,19 @@
 # Usage:
 # python3 sbom.py <target repository> <export name> params
 # Params:
-# -h or --help          displays help
-# -f or --force         forces overwriting of export file
-# -v or --verbose       verbose output
-# -iY or --include-yarn includes processing yarn.lock files
-# -oY or --only-yarn    processes only yarn.lock files
-# -a or --append        Appends to file
+# -h or --help                      displays help
+# -f or --force                     forces overwriting of export file
+# -v or --verbose                   verbose output
+# -iY or --include-yarn             includes processing yarn.lock files
+# -oY or --only-yarn                processes only yarn.lock files
+# -iP or --include-package-lock     includes processing package-lock.json files
+# -oP or --only-package-lock        processes only package.lock files
+# -a or --append                    Appends to file
+# --all                             Includes yarn and package locks, if any.
+
+
+# suggested parameters
+# sbom.py testrepo export.txt -f --all
 
 import os
 import re
@@ -23,7 +30,7 @@ from datetime import datetime
 
 settings = {}
 settings["author"] = "Juho9179@gmail.com"
-settings["version"] = "0.2"
+settings["version"] = "0.3"
 
 def verbose_print(string):
     global settings
@@ -49,6 +56,9 @@ def print_usage():
     print("\t-a or --append\t\tappends output to export file, instead of overwriting it.")
     print("\t-iY or --include-yarn\tincludes processing dependencies in yarn.lock file")
     print("\t-yO or --yarn-only\tprocesses only yarn.lock files")
+    print("\t-iP or --include-package-lock\t\tincludes processing dependencies in package-lock.json file")
+    print("\t-oP or --only-package-lock\t\tprocesses only package-lock.json file")
+    print("\t--all\t\tincludes all dependency files (package.json, deps.edn, package-lock.json, yarn.lock")
     print("\t-v or --verbose\t\tverbose output\n")
     print("Example:\n")
     print("\t" + sys.argv[0] + " project-repo export.txt -v -f\n")
@@ -179,6 +189,51 @@ def process_yarn_lock(filepath):
 
     return retn
 
+def process_package_lock(filepath):
+     # Processes package-lock.json in given filepath
+    f = open(filepath)
+    data = json.load(f)
+    dependsList = []
+
+    recursiveDeps(data, False, False, dependsList)
+    noDuplicates = list(dict.fromkeys(dependsList))
+
+    f.close()
+    
+    finalDeps = []
+    for i in noDuplicates:
+        dep = {}
+        parts = i.split(":")
+        dep["name"] = parts[0]
+        dep["version"] = parts[1]
+        finalDeps.append(dep)
+
+    exported = {}
+    exported["name"] = filepath
+    exported["dependencies"] = {}
+    exported["dependencies"]["dependencies"] = finalDeps
+    exported["dependencies"]["development_dependencies"] = []
+
+    return exported
+
+def recursiveDeps(d, depname, version, dependsList):
+    # Used in processing package lock file
+  for k,v in d.items():        
+     if isinstance(v, dict):
+        try:
+            recursiveDeps(v, k, v["version"], dependsList)
+        except KeyError:
+            recursiveDeps(v, False, False, dependsList)
+     else:
+        if (depname):
+            #print(depname,":",version)
+            dependsList.append((str(depname) + ":" + str(version)))
+
+        notIncluded = ["integrity", "resolved", "version", "dev", "requires", "lockfileVersion", "name"]
+        if (k not in notIncluded):
+            #print (k,":",v)
+            dependsList.append(str(k) + ":" + str(v))
+
 def process_manifest(filepath):
     # Determines manifest type and processes accordingly
     # Returns object accordingly
@@ -208,6 +263,8 @@ def process_manifest(filepath):
         return(process_deps_edn(filepath))
     elif  (filepath.split(get_delimeter())[-1] == "yarn.lock"):
         return(process_yarn_lock(filepath))
+    elif (filepath.split(get_delimeter())[-1] == "package-lock.json"):
+        return(process_package_lock(filepath))
 
 def find_manifests(targetrepo):
     # Find all manifest files
@@ -217,12 +274,16 @@ def find_manifests(targetrepo):
 
     if (settings["yarn_only"]):
         manifest_types.append("yarn.lock")
+    elif (settings["package_lock_only"]):
+        manifest_types.append("package-lock.json")
     else:
         manifest_types_defaults = ["package.json", "deps.edn"]
         for i in manifest_types_defaults:
             manifest_types.append(i)
         if (settings["include_yarn_lock"]):
             manifest_types.append("yarn.lock")
+        if (settings["include_package_lock"]):
+            manifest_types.append("package-lock.json")
 
     manifest_files = []
     
@@ -252,7 +313,6 @@ def append_component(component, targetfile):
             f.write("\n")
     except KeyError:
         # verbose_print("[-] No yarn.lock for component " + component["name"])
-        
         # process dependencies
         if (len(component["dependencies"]["dependencies"]) > 0):
             f.write("Dependencies:\n")
@@ -353,6 +413,26 @@ def init_settings():
     else:
         settings["yarn_only"] = False
 
+    if (("-iP" in sys.argv) or ("--include-package-lock" in sys.argv)):
+        settings["include_package_lock"] = True
+    else:
+        settings["include_package_lock"] = False
+
+    if (("-oP" in sys.argv) or ("--only-package-lock" in sys.argv)):
+        settings["package_lock_only"] = True
+    else:
+        settings["package_lock_only"] = False
+
+    if ("--all" in sys.argv):
+        settings["include_package_lock"] = True
+        settings["include_yarn_lock"] = True
+
+    # Check if two only settings, if: return error stating invalid settings
+    if (settings["package_lock_only"] and settings["yarn_only"]):
+        print("Invalid settings: package lock only and yarn only!")
+        exit()
+
+
     return settings
 
 # main function
@@ -365,6 +445,8 @@ def main():
     verbose_print("[i] Force: " + str(settings["force"]))
     verbose_print("[i] Yarn only: " + str(settings["yarn_only"]))
     verbose_print("[i] Include yarn.lock: " + str(settings["include_yarn_lock"]))
+    verbose_print("[i] Package-lock only: " + str(settings["package_lock_only"]))
+    verbose_print("[i] Include package-lock: " + str(settings["include_package_lock"]))
     verbose_print("[i] Verbose: " + str(not settings["quiet"]))
     
     clean_target(settings["export"])
