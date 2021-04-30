@@ -191,6 +191,7 @@ def process_yarn_lock(filepath):
 
 def process_package_lock(filepath):
      # Processes package-lock.json in given filepath
+     # TODO: Separate dependencies from dev. dependencies
     f = open(filepath)
     data = json.load(f)
     dependsList = []

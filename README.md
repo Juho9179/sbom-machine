@@ -15,7 +15,10 @@ Params:
 -v or --verbose                 verbose output
 -iY or --include-yarn           includes yarn.lock files in export
 -oY or --only-yarn              processes only yarn.lock files
--a or --append                  Appends to file
+-iP or --include-package-lock     includes processing package-lock.json files
+-oP or --only-package-lock        processes only package.lock files
+-a or --append                    Appends to file
+--all                             Includes yarn and package locks, if any.
 ```
 Example:          
 ```
@@ -26,7 +29,7 @@ Then appending other project to the same export file
 python3 .\sbom.py another-project export.txt -v -f -a 
 ```
 # Current features
-Reads package.json, deps.edn and yarn.lock files recursively from a directory
+Reads package.json, deps.edn, yarn.lock and package-lock.json files recursively from a directory
 
 Supports both, windows and linux-based environments
 
